@@ -73,6 +73,7 @@ can set:
     `-c config_file=/etc/postgresql/9.3/main/postgresql.conf`.
   * `system_user`: the system owner of your instance's process (default:
     `postgres`)
+  * `node_list`: the list of nodes where the PostgreSQL ressource can run. It's mandatory.
 
 For a demonstration about how to setup a cluster, see
 [http://dalibo.github.com/PAF/documentation.html](http://dalibo.github.com/PAF/documentation.html).

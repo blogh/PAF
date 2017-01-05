@@ -38,6 +38,7 @@ my $OCF_RUNNING_SLAVE     = $OCF_SUCCESS;
 my %OCF_NOTIFY_ENV        = ocf_notify_env() if $OCF_ACTION eq 'notify';
 
 # Default parameters values
+my $node_list_default   = "";
 my $system_user_default = "postgres";
 my $bindir_default      = "/usr/bin";
 my $pgdata_default      = "/var/lib/pgsql/data";
@@ -46,6 +47,7 @@ my $pgport_default      = 5432;
 my $start_opts_default  = "";
 
 # Set default values if not found in environment
+my $node_list    = $ENV{'OCF_RESKEY_node_list'} || $node_list_default;
 my $system_user  = $ENV{'OCF_RESKEY_system_user'} || $system_user_default;
 my $bindir       = $ENV{'OCF_RESKEY_bindir'} || $bindir_default;
 my $pgdata       = $ENV{'OCF_RESKEY_pgdata'} || $pgdata_default;
@@ -622,10 +624,9 @@ sub _check_locations {
     my @rs;
     my $rc;
 
-    # Call crm_node to exclude nodes that are not part of the cluster at this
-    # point.
-    my $partition_nodes = qx{ $CRM_NODE --partition };
-
+    # We use the parameter node_list as a reference for the list of nodes
+    # allowed to run the ressource in the cluster.
+    my $tmp_node_list = $node_list;
 
     # We check locations of connected standbies by querying the
     # "pg_stat_replication" view.
@@ -674,7 +675,7 @@ sub _check_locations {
     # with an acceptable state.
     while ( $row = shift @rs ) {
 
-        if ( $partition_nodes !~ /$row->[0]/ ) {
+        if ( $tmp_node_list !~ /$row->[0]/ ) {
             ocf_log( 'info', sprintf
                 '_check_locations: ignoring unknown application_name/node "%s"', $row->[0] );
             next;
@@ -716,21 +717,24 @@ sub _check_locations {
         }
 
         # Remove this node from the known nodes list.
-        $partition_nodes =~ s/(?:^|\s)$row->[0](?:\s|$)/ /g;
+        $tmp_node_list =~ s/(?:^|\s)$row->[0](?:\s|$)/ /g;
     }
 
-    $partition_nodes =~ s/(?:^\s+)|(?:\s+$)//g;
+    $tmp_node_list =~ s/(?:^\s+)|(?:\s+$)//g;
 
-    # If there are still nodes in "partition_nodes", it means there is no
+    # If there are still nodes in "tmp_node_list", it means there is no
     # corresponding line in "pg_stat_replication".
-    foreach my $node (split /\s+/ => $partition_nodes) {
+    # In that case, we set the master_score to -1000 if it's not set to -1000 already.
+    foreach my $node (split /\s+/ => $tmp_node_list) {
         # Exclude the current node.
         next if $node eq $nodename;
 
         ocf_log( 'warning', sprintf
             '_check_locations: "%s" is not connected to the primary, set score to -1000',
             $node );
-        _set_master_score( '-1000', $node );
+
+        $node_score = _get_master_score( $node );
+        _set_master_score( '-1000', $node ) if $node_score ne '-1000';
     }
 
     # Finally set the master score if not already done
@@ -887,6 +891,14 @@ sub ocf_meta_data {
               <content type="string" default="$system_user_default" />
             </parameter>
 
+            <parameter name="node_list" unique="0" required="1">
+              <longdesc lang="en">
+                Space separated list of nodes that can run the ressource.
+              </longdesc>
+              <shortdesc lang="en">List of nodes that can run the ressource</shortdesc>
+              <content type="string" />
+            </parameter>
+
             <parameter name="bindir" unique="0" required="0">
               <longdesc lang="en">
                 Path to the directory storing the PostgreSQL binaries. The agent uses psql, pg_isready, pg_controldata and pg_ctl.
@@ -998,6 +1010,12 @@ sub pgsql_validate_all {
     # check binaries
     exit $OCF_ERR_INSTALLED unless -x $PGCTL and -x $PGPSQL
         and -x $PGCTRLDATA and -x $PGISREADY;
+
+    # check if the current node is in the nodelist
+    unless ( $node_list =~ /(^|\s)$nodename(\s|$)/ ) {
+        ocf_log( 'err',  sprintf 'The current node "%s" is not in the node_list parameter of the agent "%s"', $nodename, $node_list );
+        exit $OCF_ERR_INSTALLED;
+    }
 
     # check pgdata
     if ( ! -d $pgdata ) {
