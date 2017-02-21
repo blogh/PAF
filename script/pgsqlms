@@ -671,8 +671,8 @@ sub _check_locations {
         }
         else {
             ocf_log( 'debug',
-                '_check_locations: checking "%s" promotion ability (current_score: %s, priority: %s, location: %s)',
-                $row->[0], $node_score, $row->[1], $row->[2] );
+                '_check_locations: checking "%s" promotion ability (current_score: %s, priority: %s, location: %s, lag: %s)',
+                $row->[0], $node_score, $row->[1], $row->[2], $row->[4] );
 
             if ( $node_score ne $row->[1] ) {
                 if ( $row->[1] < -1 ) {
