@@ -605,7 +605,7 @@ sub _check_locations {
     # The result set itself is order by priority DESC to process best known
     # candidate first.
     $query = qq{
-      SELECT application_name, priority, location, state
+      SELECT application_name, priority, location, state, current_lag
       FROM (
         SELECT application_name,
           (1000 - (
@@ -615,13 +615,14 @@ sub _check_locations {
             ) - 1
            ) * 10
 	  ) * CASE WHEN ($maxlag > 0
-	                 AND pg_xlog_location_diff(pg_current_xlog_location(), write_location) > $maxlag)
+	                 AND current_lag > $maxlag)
                         THEN -1
                    ELSE 1
               END AS priority,
-          write_location AS location, state
+          write_location AS location, state, current_lag
         FROM (
-          SELECT application_name, write_location, state
+          SELECT application_name, write_location, state,
+                 pg_xlog_location_diff(pg_current_xlog_location(), write_location) as current_lag
           FROM pg_stat_replication
         ) AS s2
       ) AS s1
@@ -674,8 +675,14 @@ sub _check_locations {
                 $row->[0], $node_score, $row->[1], $row->[2] );
 
             if ( $node_score ne $row->[1] ) {
-                ocf_log( 'info', 'Update score of "%s" from %s to %s',
-                    $row->[0], $node_score, $row->[1] );
+                if ( $row->[1] < -1 ) {
+                    ocf_log( 'info', 'Update score of "%s" from %s to %s because replication lag (%s) is higher than given maxlag (%s).'
+                        $row->[0], $node_score, $row->[1], $row->[4], maxlag );
+                }
+                else {
+                    ocf_log( 'info', 'Update score of "%s" from %s to %s because of a change in the replication lag (%s).',
+                        $row->[0], $node_score, $row->[1], $row->[4] );
+                }
                 _set_master_score( $row->[1], $row->[0] );
             }
             else {
