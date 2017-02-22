@@ -675,9 +675,9 @@ sub _check_locations {
                 $row->[0], $node_score, $row->[1], $row->[2], $row->[4] );
 
             if ( $node_score ne $row->[1] ) {
-                if ( $row->[1] < -1 ) {
-                    ocf_log( 'info', 'Update score of "%s" from %s to %s because replication lag (%s) is higher than given maxlag (%s).'
-                        $row->[0], $node_score, $row->[1], $row->[4], maxlag );
+                if ( $row->[1] < -1 ) {
+                    ocf_log( 'info', 'Update score of "%s" from %s to %s because replication lag (%s) is higher than given maxlag (%s).',
+                        $row->[0], $node_score, $row->[1], $row->[4], $maxlag );
                 }
                 else {
                     ocf_log( 'info', 'Update score of "%s" from %s to %s because of a change in the replication lag (%s).',
