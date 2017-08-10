@@ -12,6 +12,7 @@ title: PostgreSQL Automatic Failover - FAQ
 * [What versions?](#what-versions)
 * [Will PAF protect me against data loss?](#protection-against-data-loss)
 * [Pacemaker triggered a failover, and now my old master cannot join the cluster anymore, what should I do?](#how-to-failback)
+* [How can I change the max_connections setting of PostgreSQL without breaking the HA cluster ?](#update-maxconnections)
 
 
 <a name="why-new-ra-for-postgresql"></a>
@@ -139,5 +140,20 @@ cluster anymore, what should I do?__
 __A__: You need to rebuild your old master from the new primary instance first.
 
 See the "Failover" section in the [administration page]({{ site.baseurl }}/administration.html).
+
+
+<a name="update-maxconnections"></a>
+__Q: How can I change the max_connections setting of PostgreSQL without breaking
+the HA cluster ?__
+
+__A__: The requirements for changing max_connections are to:
+* restart your PostgreSQL instance after the modification.
+* have an equal or highter value for the setting on you standby(ies) compared to the master.
+
+This is usually not a problem if you do things in the right order. With pacemaker it's a little
+trickier than usual because resources are always restarted as standby first  (even you master).
+Therefore, before proceeding to the change, you should either:
+* set the nodes to maintenance mode.
+* unmanage the ressource of the PostgreSQL cluster you want to modify.
 
 
